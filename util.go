@@ -1,5 +1,9 @@
 package sdl
 
+import (
+	"math"
+)
+
 func (re *Renderer) DrawCircle(xc, yc, r int) {
 	x := 0
 	y := r
@@ -27,6 +31,19 @@ func (re *Renderer) circlePlot(xc, yc, x, y int) {
 	re.DrawPoint(xc-y, yc+x)
 	re.DrawPoint(xc+y, yc-x)
 	re.DrawPoint(xc-y, yc-x)
+}
+
+func (re *Renderer) FillCircle(xc, yc, r int) {
+	radius := float64(r)
+	for dy := float64(1); dy <= radius; dy += 1 {
+		dx := int(math.Floor(math.Sqrt((2 * radius * dy) - (dy * dy))))
+		x := xc - dx
+
+		y1 := int(float64(yc+r) - dy)
+		y2 := int(float64(yc-r) + dy)
+		re.DrawLine(x, y1, xc+dx, y1)
+		re.DrawLine(x, y2, xc+dx, y2)
+	}
 }
 
 func round(x float64) int {

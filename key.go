@@ -6,11 +6,6 @@ package sdl
 import "C"
 
 const (
-	KEYDOWN = C.SDL_KEYDOWN
-	KEYUP   = C.SDL_KEYUP
-)
-
-const (
 	K_UNKNOWN            = C.SDLK_UNKNOWN
 	K_RETURN             = C.SDLK_RETURN
 	K_ESCAPE             = C.SDLK_ESCAPE

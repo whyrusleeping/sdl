@@ -6,6 +6,8 @@ package sdl
 */
 import "C"
 
+type TouchID C.SDL_TouchID
+type FingerID C.SDL_FingerID
 type Int C.int
 type Joystick C.SDL_Joystick
 type GameController C.SDL_GameController
@@ -155,4 +157,32 @@ type ControllerButtonEvent struct {
 	Which     int
 	Button    uint8
 	State     uint8
+}
+
+type MessageBoxColor struct {
+	R, G, B uint8
+}
+
+type MessageBoxColorScheme struct {
+	Colors [MESSAGEBOX_COLOR_MAX]MessageBoxColor
+}
+
+type MessageBoxButtonData struct {
+	Flags    uint32
+	ButtonID int
+	Text     string
+}
+
+type MessageBoxData struct {
+	Flags       uint32
+	Window      *Window
+	Title       string
+	Message     string
+	Buttons     []MessageBoxButtonData
+	ColorScheme *MessageBoxColorScheme
+}
+
+type Finger struct {
+	ID             FingerID
+	X, Y, Pressure float32
 }

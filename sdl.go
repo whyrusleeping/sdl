@@ -8,7 +8,6 @@ import "C"
 
 import (
 	"errors"
-	"fmt"
 	"image"
 	"image/color"
 	_ "image/gif"
@@ -27,6 +26,13 @@ func Init(flags uint32) error {
 		return errors.New(GetError())
 	}
 
+	return nil
+}
+
+func InitSubSystem(flags uint32) error {
+	if C.SDL_InitSubSystem(C.Uint32(flags)) < 0 {
+		return errors.New(GetError())
+	}
 	return nil
 }
 
@@ -225,13 +231,53 @@ func (re *Renderer) DrawRect(r Rect) {
 	C.SDL_RenderDrawRect((*C.SDL_Renderer)(re), &cr)
 }
 
+func (re *Renderer) DrawRects(r []Rect) {
+	C.SDL_RenderDrawRects((*C.SDL_Renderer)(re), (*C.SDL_Rect)(unsafe.Pointer(&r[0])), C.int(len(r)))
+}
+
 func (re *Renderer) FillRect(r Rect) {
 	cr := C.SDL_Rect{C.int(r.X), C.int(r.Y), C.int(r.W), C.int(r.H)}
 	C.SDL_RenderFillRect((*C.SDL_Renderer)(re), &cr)
 }
 
+func (re *Renderer) FillRects(r []Rect) {
+	C.SDL_RenderFillRects((*C.SDL_Renderer)(re), (*C.SDL_Rect)(unsafe.Pointer(&r[0])), C.int(len(r)))
+}
+
 func (re *Renderer) SetScale(x, y float64) {
 	C.SDL_RenderSetScale((*C.SDL_Renderer)(re), C.float(x), C.float(y))
+}
+
+func (re *Renderer) OutputSize() (w, h int, err error) {
+	var cw, ch C.int
+	v := C.SDL_GetRendererOutputSize((*C.SDL_Renderer)(re), &cw, &ch)
+	w, h = int(cw), int(ch)
+	if v < 0 {
+		err = errors.New(GetError())
+	}
+	return
+}
+
+func (re *Renderer) SetViewport(r Rect) {
+	cr := C.SDL_Rect{x: C.int(r.X), y: C.int(r.Y), w: C.int(r.W), h: C.int(r.H)}
+	C.SDL_RenderSetViewport((*C.SDL_Renderer)(re), &cr)
+}
+
+func (re *Renderer) SetClipRect(r Rect) {
+	cr := C.SDL_Rect{x: C.int(r.X), y: C.int(r.Y), w: C.int(r.W), h: C.int(r.H)}
+	C.SDL_RenderSetClipRect((*C.SDL_Renderer)(re), &cr)
+}
+
+func (re *Renderer) Viewport() Rect {
+	var cr C.SDL_Rect
+	C.SDL_RenderGetViewport((*C.SDL_Renderer)(re), &cr)
+	return Rect{X: Int(cr.x), Y: Int(cr.y), W: Int(cr.w), H: Int(cr.h)}
+}
+
+func (re *Renderer) ClipRect() Rect {
+	var cr C.SDL_Rect
+	C.SDL_RenderGetClipRect((*C.SDL_Renderer)(re), &cr)
+	return Rect{X: Int(cr.x), Y: Int(cr.y), W: Int(cr.w), H: Int(cr.h)}
 }
 
 func (re *Renderer) CreateTexture(format uint32, access, w, h int) (*Texture, error) {
@@ -409,158 +455,4 @@ func LoadBMP(fn string) (*Surface, error) {
 	}
 
 	return s, nil
-}
-func Delay(ms uint32) {
-	C.SDL_Delay(C.Uint32(ms))
-}
-
-func GetTicks() uint32 {
-	return uint32(C.SDL_GetTicks())
-}
-
-func PollEvent() Event {
-	var ev C.SDL_Event
-	if C.SDL_PollEvent(&ev) == 0 {
-		return nil
-	}
-
-	typ := *((*uint32)(unsafe.Pointer(&ev)))
-	switch typ {
-	case C.SDL_QUIT:
-		return &QuitEvent{}
-
-	case C.SDL_KEYDOWN, C.SDL_KEYUP:
-		ev := (*C.SDL_KeyboardEvent)(unsafe.Pointer(&ev))
-		kb := &KeyboardEvent{
-			Type:      uint32(ev._type),
-			Timestamp: uint32(ev.timestamp),
-			WindowID:  uint32(ev.windowID),
-			State:     uint8(ev.state),
-			Keysym: Keysym{
-				ScanCode: int32(ev.keysym.scancode),
-				Sym:      Keycode(ev.keysym.sym),
-				Mod:      uint16(ev.keysym.mod),
-				Unicode:  uint32(ev.keysym.unicode),
-			},
-		}
-
-		kb.Repeat = false
-		if ev.repeat != 0 {
-			kb.Repeat = true
-		}
-
-		return kb
-
-	case C.SDL_WINDOWEVENT:
-		ev := (*C.SDL_WindowEvent)(unsafe.Pointer(&ev))
-		return &WindowEvent{
-			Timestamp: uint32(ev.timestamp),
-			WindowID:  uint32(ev.windowID),
-			Event:     uint8(ev.event),
-			Data:      [2]int{int(ev.data1), int(ev.data2)},
-		}
-
-	case C.SDL_FIRSTEVENT:
-		return &FirstEvent{}
-
-	case C.SDL_MOUSEMOTION:
-		ev := (*C.SDL_MouseMotionEvent)(unsafe.Pointer(&ev))
-		return &MouseMotionEvent{
-			Timestamp: uint32(ev.timestamp),
-			WindowID:  uint32(ev.windowID),
-			State:     uint8(ev.state),
-			X:         int(ev.x),
-			Y:         int(ev.y),
-			Xrel:      int(ev.xrel),
-			Yrel:      int(ev.yrel),
-		}
-
-	case C.SDL_MOUSEBUTTONDOWN, C.SDL_MOUSEBUTTONUP:
-		ev := (*C.SDL_MouseButtonEvent)(unsafe.Pointer(&ev))
-		return &MouseButtonEvent{
-			Type:      uint32(ev._type),
-			Timestamp: uint32(ev.timestamp),
-			WindowID:  uint32(ev.windowID),
-			Button:    uint8(ev.button),
-			State:     uint8(ev.state),
-			X:         int(ev.x),
-			Y:         int(ev.y),
-		}
-
-	case C.SDL_MOUSEWHEEL:
-		ev := (*C.SDL_MouseWheelEvent)(unsafe.Pointer(&ev))
-		return &MouseWheelEvent{
-			Timestamp: uint32(ev.timestamp),
-			WindowID:  uint32(ev.windowID),
-			X:         int(ev.x),
-			Y:         int(ev.y),
-		}
-
-	case C.SDL_TEXTEDITING:
-		ev := (*C.SDL_TextEditingEvent)(unsafe.Pointer(&ev))
-		t := &TextEditingEvent{
-			Timestamp: uint32(ev.timestamp),
-			WindowID:  uint32(ev.windowID),
-			Start:     int(ev.start),
-			Length:    int(ev.length),
-		}
-		for i := range t.Text {
-			t.Text[i] = byte(ev.text[i])
-		}
-		return t
-
-	case C.SDL_TEXTINPUT:
-		ev := (*C.SDL_TextInputEvent)(unsafe.Pointer(&ev))
-		t := &TextInputEvent{
-			Timestamp: uint32(ev.timestamp),
-			WindowID:  uint32(ev.windowID),
-		}
-		for i := range t.Text {
-			t.Text[i] = byte(ev.text[i])
-		}
-		return t
-
-	case C.SDL_JOYAXISMOTION:
-		ev := (*C.SDL_JoyAxisEvent)(unsafe.Pointer(&ev))
-		return &JoyAxisEvent{
-			Timestamp: uint32(ev.timestamp),
-			Which:     int(ev.which),
-			Axis:      uint8(ev.axis),
-			Value:     int16(ev.value),
-		}
-
-	case C.SDL_JOYBUTTONDOWN, C.SDL_JOYBUTTONUP:
-		ev := (*C.SDL_JoyButtonEvent)(unsafe.Pointer(&ev))
-		return &JoyButtonEvent{
-			Type:      uint32(ev._type),
-			Timestamp: uint32(ev.timestamp),
-			Which:     int(ev.which),
-			Button:    uint8(ev.button),
-			State:     uint8(ev.state),
-		}
-
-	case C.SDL_CONTROLLERAXISMOTION:
-		ev := (*C.SDL_ControllerAxisEvent)(unsafe.Pointer(&ev))
-		return &ControllerAxisEvent{
-			Timestamp: uint32(ev.timestamp),
-			Which:     int(ev.which),
-			Axis:      uint8(ev.axis),
-			Value:     int16(ev.value),
-		}
-
-	case C.SDL_CONTROLLERBUTTONDOWN, C.SDL_CONTROLLERBUTTONUP:
-		ev := (*C.SDL_ControllerButtonEvent)(unsafe.Pointer(&ev))
-		return &ControllerButtonEvent{
-			Type:      uint32(ev._type),
-			Timestamp: uint32(ev.timestamp),
-			Which:     int(ev.which),
-			Button:    uint8(ev.button),
-			State:     uint8(ev.state),
-		}
-
-	default:
-		panic(fmt.Sprintf("sdl: unimplemented event: %v", typ))
-	}
-
-	panic("unreachable")
 }
