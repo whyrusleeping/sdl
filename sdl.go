@@ -53,6 +53,37 @@ func NewDisplay(width, height int, wflags uint32) (*Display, error) {
 	return wr, nil
 }
 
+func NewWindow(title string, x, y, w, h int, flags uint32) (*Window, error) {
+	ctitle := C.CString(title)
+	defer C.free(unsafe.Pointer(ctitle))
+	window := C.SDL_CreateWindow(ctitle, C.int(x), C.int(y), C.int(w), C.int(h), C.Uint32(flags))
+	if window == nil {
+		return nil, errors.New(GetError())
+	}
+
+	return (*Window)(window), nil
+}
+
+func CreateRenderer(w *Window, index int, flags uint32) (*Renderer, error) {
+	re := C.SDL_CreateRenderer((*C.SDL_Window)(w), C.int(index), C.Uint32(flags))
+	if re == nil {
+		return nil, errors.New(GetError())
+	}
+	return (*Renderer)(re), nil
+}
+
+func CreateSoftwareRenderer(surface *Surface) (*Renderer, error) {
+	re := C.SDL_CreateSoftwareRenderer((*C.SDL_Surface)(surface))
+	if re == nil {
+		return nil, errors.New(GetError())
+	}
+	return (*Renderer)(re), nil
+}
+
+func NumRenderDrivers() int {
+	return int(C.SDL_GetNumRenderDrivers())
+}
+
 func CreateRGBSurfaceFrom(pixels []byte, width, height, depth, pitch int, rmask, gmask, bmask, amask uint32) (*Surface, error) {
 	s := C.SDL_CreateRGBSurfaceFrom(unsafe.Pointer(&pixels[0]), C.int(width), C.int(height), C.int(depth), C.int(pitch),
 		C.Uint32(rmask), C.Uint32(gmask), C.Uint32(bmask), C.Uint32(amask))
@@ -64,6 +95,26 @@ func CreateRGBSurfaceFrom(pixels []byte, width, height, depth, pitch int, rmask,
 
 func (s *Surface) Free() {
 	C.SDL_FreeSurface((*C.SDL_Surface)(s))
+}
+
+func GetWindowFromID(id uint32) *Window {
+	return (*Window)(C.SDL_GetWindowFromID(C.Uint32(id)))
+}
+
+func (w *Window) Flags() uint32 {
+	return uint32(C.SDL_GetWindowFlags((*C.SDL_Window)(w)))
+}
+
+func (w *Window) ID() uint32 {
+	return uint32(C.SDL_GetWindowID((*C.SDL_Window)(w)))
+}
+
+func (w *Window) Renderer() (*Renderer, error) {
+	re := C.SDL_GetRenderer((*C.SDL_Window)(w))
+	if re == nil {
+		return nil, errors.New(GetError())
+	}
+	return (*Renderer)(re), nil
 }
 
 func (w *Window) SetFullscreen(fullscreen bool) {
@@ -142,6 +193,14 @@ func (w *Window) Destroy() {
 	C.SDL_DestroyWindow((*C.SDL_Window)(w))
 }
 
+func (w *Window) SetBrightness(brightness float32) {
+	C.SDL_SetWindowBrightness((*C.SDL_Window)(w), C.float(brightness))
+}
+
+func (w *Window) Brightness() float32 {
+	return float32(C.SDL_GetWindowBrightness((*C.SDL_Window)(w)))
+}
+
 func (w *Window) DisplayMode() DisplayMode {
 	var mode C.SDL_DisplayMode
 	C.SDL_GetWindowDisplayMode((*C.SDL_Window)(w), &mode)
@@ -163,6 +222,10 @@ func (w *Window) MakeGLCurrent(context GLContext) {
 	} else {
 		C.SDL_GL_MakeCurrent((*C.SDL_Window)(w), C.SDL_GLContext(context))
 	}
+}
+
+func (w *Window) SwapGL() {
+	C.SDL_GL_SwapWindow((*C.SDL_Window)(w))
 }
 
 func (w *Window) SetGLSwapInterval(interval int) {
@@ -200,6 +263,31 @@ func (re *Renderer) SetTarget(texture *Texture) error {
 		return errors.New(GetError())
 	}
 	return nil
+}
+
+func (re *Renderer) Target() *Texture {
+	return (*Texture)(C.SDL_GetRenderTarget((*C.SDL_Renderer)(re)))
+}
+
+func (re *Renderer) Info() (RendererInfo, error) {
+	var info C.SDL_RendererInfo
+	rc := C.SDL_GetRendererInfo((*C.SDL_Renderer)(re), &info)
+	p := RendererInfo{
+		Name:              C.GoString(info.name),
+		Flags:             uint32(info.flags),
+		NumTextureFormats: uint32(info.num_texture_formats),
+		MaxTextureWidth:   int(info.max_texture_width),
+		MaxTextureHeight:  int(info.max_texture_height),
+	}
+
+	for i := range p.TextureFormats {
+		p.TextureFormats[i] = uint32(info.texture_formats[i])
+	}
+
+	if rc < 0 {
+		return p, errors.New(GetError())
+	}
+	return p, nil
 }
 
 func (re *Renderer) SetDrawColor(c color.RGBA) {
@@ -246,6 +334,12 @@ func (re *Renderer) FillRects(r []Rect) {
 
 func (re *Renderer) SetScale(x, y float64) {
 	C.SDL_RenderSetScale((*C.SDL_Renderer)(re), C.float(x), C.float(y))
+}
+
+func (re *Renderer) Scale() (x, y float64) {
+	var fx, fy C.float
+	C.SDL_RenderGetScale((*C.SDL_Renderer)(re), &fx, &fy)
+	return float64(fx), float64(fy)
 }
 
 func (re *Renderer) OutputSize() (w, h int, err error) {
@@ -384,6 +478,20 @@ func (re *Renderer) Destroy() {
 	C.SDL_DestroyRenderer((*C.SDL_Renderer)(re))
 }
 
+func (re *Renderer) SetLogicalSize(w, h int) error {
+	rc := C.SDL_RenderSetLogicalSize((*C.SDL_Renderer)(re), C.int(w), C.int(h))
+	if rc < 0 {
+		return errors.New(GetError())
+	}
+	return nil
+}
+
+func (re *Renderer) LogicalSize() (w, h int) {
+	var cw, ch C.int
+	C.SDL_RenderGetLogicalSize((*C.SDL_Renderer)(re), &cw, &ch)
+	return int(cw), int(ch)
+}
+
 func (t *Texture) SetColorMod(c color.RGBA) {
 	C.SDL_SetTextureColorMod((*C.SDL_Texture)(t), C.Uint8(c.R), C.Uint8(c.G), C.Uint8(c.B))
 }
@@ -455,4 +563,64 @@ func LoadBMP(fn string) (*Surface, error) {
 	}
 
 	return s, nil
+}
+
+func IsScreenSaverEnabled() bool {
+	v := C.SDL_IsScreenSaverEnabled()
+	if v == 0 {
+		return false
+	}
+	return true
+}
+
+func EnableScreenSaver() {
+	C.SDL_EnableScreenSaver()
+}
+
+func DisableScreenSaver() {
+	C.SDL_DisableScreenSaver()
+}
+
+func SetGLAttribute(attr GLattr, value int) error {
+	v := C.SDL_GL_SetAttribute((C.SDL_GLattr)(attr), C.int(value))
+	if v < 0 {
+		return errors.New(GetError())
+	}
+	return nil
+}
+
+func GetGLAttribute(attr GLattr) (int, error) {
+	var v C.int
+	rc := C.SDL_GL_GetAttribute(C.SDL_GLattr(attr), &v)
+	if rc < 0 {
+		return int(v), errors.New(GetError())
+	}
+	return int(v), nil
+}
+
+func GLBindTexture(texture *Texture) (texw, texh float64, err error) {
+	var w, h C.float
+	rc := C.SDL_GL_BindTexture((*C.SDL_Texture)(texture), &w, &h)
+	if rc < 0 {
+		return float64(w), float64(h), errors.New("not supported")
+	}
+	return float64(w), float64(h), nil
+}
+
+func GLUnbindTexture(texture *Texture) error {
+	rc := C.SDL_GL_UnbindTexture((*C.SDL_Texture)(texture))
+	if rc < 0 {
+		return errors.New("not supported")
+	}
+	return nil
+}
+
+func GetPlatform() string {
+	return C.GoString(C.SDL_GetPlatform())
+}
+
+func PowerInfo() (state PowerState, secs, pct int) {
+	var s, p C.int
+	st := C.SDL_GetPowerInfo(&s, &p)
+	return PowerState(st), int(s), int(p)
 }

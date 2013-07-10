@@ -24,6 +24,15 @@ type Display struct {
 	*Renderer
 }
 
+type RendererInfo struct {
+	Name              string
+	Flags             uint32
+	NumTextureFormats uint32
+	TextureFormats    [16]uint32
+	MaxTextureWidth   int
+	MaxTextureHeight  int
+}
+
 type DisplayMode struct {
 	Format      uint32
 	W, H        int
@@ -68,7 +77,6 @@ type Keysym struct {
 	Mod      uint16
 	ScanCode int32
 	Sym      Keycode
-	Unicode  uint32
 }
 
 type WindowEvent struct {

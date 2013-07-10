@@ -58,7 +58,6 @@ func convertEvent(ev *C.SDL_Event) Event {
 				ScanCode: int32(ev.keysym.scancode),
 				Sym:      Keycode(ev.keysym.sym),
 				Mod:      uint16(ev.keysym.mod),
-				Unicode:  uint32(ev.keysym.unicode),
 			},
 		}
 
